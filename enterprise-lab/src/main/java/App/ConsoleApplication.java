@@ -22,13 +22,24 @@ package App;
  * =====================================================================================================================
  * =====================================================================================================================
  */
+/*
+ * 1. Набросать сущности ✅
+ * 2. Создать базу данных ✅
+ * 3. Написать методы для работы с БД
+ * 4. Реализовать работу методов
+ * 5. События
+ */
 import App.config.AppConfiguration;
 import App.model.*;
+import App.service.DatabaseService;
 import App.service.TestService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.jdbc.core.BeanPropertyRowMapper;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.*;
 
@@ -36,22 +47,28 @@ import java.util.*;
 @ComponentScan(
         basePackageClasses = {TestService.class,
                 AppConfiguration.class,
+                Table1.class,
+                Table1Mapper.class,
+                DatabaseService.class
                 })
 public class ConsoleApplication
 {
-    public static int trID = 0;
-    public static int stID = 0;
-    public static int roID = 0;
-    public static Map<Integer, Train> trains = new HashMap<>();
-    public static Map<Integer, Route> routes = new HashMap<>();
-    public static Railway railway = new Railway();
-    public static Table table = new Table();
+    public static Table1 table = new Table1();
     public static TestService testService;
+    public static DatabaseService databaseService;
+
+    public JdbcTemplate jdbcTemplate;
+    static JdbcTemplate jd;
+    @Autowired
+    public ConsoleApplication(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
+        jd = jdbcTemplate;
+    }
+
     public static void main(String[] args) {
         ApplicationContext context = new AnnotationConfigApplicationContext(ConsoleApplication.class);
         testService = context.getBean(TestService.class);
-        // Далее работа с сервисами
-        //testService.printHello();
+        databaseService = context.getBean(DatabaseService.class);
         MyListener myListener = new MyListener();
         myListener.start();
     }
@@ -61,48 +78,72 @@ public class ConsoleApplication
             while (sc.hasNext()) {
                 String opt = sc.next().toLowerCase();
                 if (opt.equals("st")) {
-                    railway.getStations().put(stID, testService.createStation(stID));
-                    stID++;
+                    String name = sc.next();
+                    int km = sc.nextInt();
+                    int stID = jd.query("select id from station", new BeanPropertyRowMapper<>(Station.class)).size()+1;
+                    Station station = testService.createStation(stID, name, km);
+                    databaseService.addStation(station, jd);
                 }
                 if (opt.equals("tr")) {
-                    trains.put(trID, testService.createTrain(trID));
-                    trID++;
+                    Train train;
+                    if (sc.hasNextInt()) {
+                        int speedkoeff = sc.nextInt();
+                        int waitingkoeff = sc.nextInt();
+                        train = new Train(-1, speedkoeff, waitingkoeff);
+                    } else {
+                        train = new Train();
+                    }
+                    databaseService.addTrain(train, jd);
+                    testService.print("Поезд создан");
                 }
                 if (opt.startsWith("add")) {
-                    int trid = sc.nextInt();
-                    int stid = sc.nextInt();
-                    testService.putTrainAtStation(trains.get(trid), railway.getStations().get(stid));
+                    int train_id = sc.nextInt();
+                    int station_id = sc.nextInt();
+                    Train train = (Train) jd.query("select * from train where id = " + train_id, new BeanPropertyRowMapper<>(Train.class)).get(0);
+                    Station station = (Station) jd.query("select * from station where id = " + station_id, new BeanPropertyRowMapper<>(Station.class)).get(0);
+                    databaseService.putTrainInStation(train, station, jd);
+                }
+                if (opt.startsWith("del")) {
+                    int train_id = sc.nextInt();
+                    int station_id = sc.nextInt();
+                    Train train = (Train) jd.query("select * from train where id = " + train_id, new BeanPropertyRowMapper<>(Train.class)).get(0);
+                    Station station = (Station) jd.query("select * from station where id = " + station_id, new BeanPropertyRowMapper<>(Station.class)).get(0);
+                    databaseService.deleteTrainFromStation(train, station, jd );
                 }
                 if (opt.startsWith("move")) {
-                    int trid = sc.nextInt();
-                    int stid = sc.nextInt();
-                    int stid0 = sc.nextInt();
-                    testService.moveTrain(trains.get(trid), railway.getStations().get(stid), railway.getStations().get(stid0));
+                    int train_id = sc.nextInt();
+                    int station_id = sc.nextInt();
+                    Train train = (Train) jd.query("select * from train where id = " + train_id, new BeanPropertyRowMapper<>(Train.class)).get(0);
+                    Station station = (Station) jd.query("select * from station where id = " + station_id, new BeanPropertyRowMapper<>(Station.class)).get(0);
+                    databaseService.changeTrainStantion(train, station, jd);
                 }
                 if (opt.startsWith("ro")) {
+                    String name = sc.next();
                     List<Integer> ids = new ArrayList<>();
                     while (sc.hasNextInt()) {
                         ids.add(sc.nextInt());
                     }
-                    Route route = new Route(roID);
+                    int roID = jd.query("select * from route", new BeanPropertyRowMapper<>(Route.class)).size()+1;
+                    Route route = new Route(roID, name);
+                    databaseService.addRoute(jd, route);
+
+                    for (Integer key : ids) {
+                        List<Station> stations = jd.query("select * from station where id = " + key, new BeanPropertyRowMapper<>(Station.class));
+                        route.getStations().add(stations.get(0));
+                        databaseService.addStationInRoute(stations.get(0), route, jd);
+
+                    }
                     testService.print("Маршрут создан (" + roID + ")");
                     testService.print("╔═╗");
                     for (Integer key : ids) {
-                        route.getStations().add(railway.getStations().get(key));
                         testService.print("╠" + key + "╣");
                     }
                     testService.print("╚═╝");
-                    routes.put(roID, route);
-                    roID++;
                 }
                 if (opt.startsWith("gr")) {
                     int roid = sc.nextInt();
-                    testService.getRoute(routes, roid);
-                }
-                if (opt.startsWith("ta")) {
-                    int trid = sc.nextInt();
-                    int roid = sc.nextInt();
-                    testService.createTableEl(table, routes.get(roid), trains.get(trid));
+                    Route route = (Route) jd.query("select * from route where id = " + roid, new BeanPropertyRowMapper<>(Route.class)).get(0);
+                    testService.getRoute(route, roid);
                 }
             }
         }
