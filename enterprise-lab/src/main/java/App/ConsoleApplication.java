@@ -84,7 +84,7 @@ public class ConsoleApplication
                     Station station = testService.createStation(stID, name, km);
                     databaseService.addStation(station, jd);
                 }
-                if (opt.equals("tr")) {
+                if (opt.startsWith("tr")) {
                     Train train;
                     if (sc.hasNextInt()) {
                         int speedkoeff = sc.nextInt();

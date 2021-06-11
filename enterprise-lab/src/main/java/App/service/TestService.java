@@ -19,25 +19,18 @@ public class TestService {
         pastStation.getTrainsOnStation().remove(train);
         nextStation.getTrainsOnStation().add(train);
     }
-
     public Station createStation (int id, String name, int km) {
         print("Станция создана (" + id + ")");
         return new Station(id, name, km);
     }
-
     public Train createTrain (int id) {
         print("Поезд создан (" + id + ")");
         return new Train(id);
     }
-
-
     public void putTrainAtStation (Train train, Station station) {
         print("Поезд (" + train.getId() + ") добавлен на станцию (" + station.getId() + ")");
         station.getTrainsOnStation().add(train);
     }
-
-
-
     public Route getRoute (Route route, int roID) {
         print("Маршрут выбран");
         print("╔═╗");
